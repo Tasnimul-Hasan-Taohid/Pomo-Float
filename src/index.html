@@ -1,0 +1,803 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Pomo Float</title>
+<style>
+/* ── Reset & Base ────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --work:      #ff6b6b;
+  --break:     #51cf66;
+  --long:      #339af0;
+  --bg:        rgba(15, 15, 20, 0.92);
+  --bg2:       rgba(255,255,255,0.06);
+  --bg3:       rgba(255,255,255,0.1);
+  --text:      #f0f0f5;
+  --text2:     #9090a8;
+  --radius:    16px;
+  --accent:    var(--work);
+}
+body[data-mode="break"]     { --accent: var(--break); }
+body[data-mode="longbreak"] { --accent: var(--long); }
+
+html, body {
+  width: 100%; height: 100%;
+  background: transparent;
+  font-family: -apple-system, 'SF Pro Display', 'Segoe UI', system-ui, sans-serif;
+  color: var(--text);
+  user-select: none;
+  overflow: hidden;
+}
+
+/* ── Outer shell ─────────────────────────────────────────── */
+.shell {
+  width: 100%; height: 100vh;
+  background: var(--bg);
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  border-radius: var(--radius);
+  border: 1px solid rgba(255,255,255,0.12);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.6), 0 0 0 0.5px rgba(255,255,255,0.08) inset;
+}
+
+/* ── Title bar / drag area ───────────────────────────────── */
+.titlebar {
+  display: flex; align-items: center;
+  padding: 10px 12px 8px;
+  gap: 8px;
+  cursor: grab;
+  background: rgba(255,255,255,0.04);
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+  flex-shrink: 0;
+}
+.titlebar:active { cursor: grabbing; }
+
+.tb-dot {
+  width: 11px; height: 11px; border-radius: 50%;
+  flex-shrink: 0;
+}
+.tb-close  { background: #ff5f57; }
+.tb-min    { background: #febc2e; }
+.tb-pin    { background: var(--accent); transition: background 0.3s; }
+
+.tb-dot:hover { filter: brightness(1.3); cursor: pointer; }
+
+.tb-title {
+  flex: 1; text-align: center;
+  font-size: 11px; font-weight: 600;
+  color: var(--text2); letter-spacing: 0.6px;
+  text-transform: uppercase;
+}
+
+.tb-sound {
+  width: 22px; height: 22px;
+  background: var(--bg2);
+  border: none; border-radius: 6px;
+  color: var(--text2); cursor: pointer;
+  font-size: 12px;
+  display: flex; align-items: center; justify-content: center;
+  transition: all 0.15s;
+  flex-shrink: 0;
+}
+.tb-sound:hover { background: var(--bg3); color: var(--text); }
+
+/* ── Mode bar ────────────────────────────────────────────── */
+.modebar {
+  display: flex; gap: 4px;
+  padding: 8px 12px 0;
+  flex-shrink: 0;
+}
+.mode-btn {
+  flex: 1; padding: 5px 0;
+  background: var(--bg2); border: none;
+  border-radius: 8px; color: var(--text2);
+  font-size: 10px; font-weight: 600;
+  letter-spacing: 0.4px; cursor: pointer;
+  transition: all 0.15s;
+  text-transform: uppercase;
+}
+.mode-btn:hover { background: var(--bg3); }
+.mode-btn.active {
+  background: var(--accent);
+  color: #fff;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.3);
+}
+
+/* ── Main timer area ─────────────────────────────────────── */
+.timer-area {
+  flex: 1;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  padding: 8px 12px;
+  gap: 6px;
+}
+
+/* Arc progress ring */
+.ring-wrap {
+  position: relative;
+  width: 140px; height: 140px;
+  flex-shrink: 0;
+}
+
+.ring-svg {
+  width: 140px; height: 140px;
+  transform: rotate(-90deg);
+}
+
+.ring-track {
+  fill: none;
+  stroke: rgba(255,255,255,0.08);
+  stroke-width: 6;
+}
+
+.ring-progress {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 6;
+  stroke-linecap: round;
+  transition: stroke-dashoffset 1s linear, stroke 0.4s ease;
+  filter: drop-shadow(0 0 6px var(--accent));
+}
+
+.ring-inner {
+  position: absolute; inset: 0;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  gap: 2px;
+}
+
+.time-display {
+  font-size: 34px; font-weight: 700;
+  letter-spacing: -1px;
+  color: var(--text);
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  transition: color 0.3s;
+}
+
+.session-label {
+  font-size: 10px; font-weight: 500;
+  color: var(--accent);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  transition: color 0.3s;
+}
+
+/* ── Message area ────────────────────────────────────────── */
+.message-box {
+  width: 100%;
+  min-height: 38px;
+  background: var(--bg2);
+  border-radius: 10px;
+  padding: 6px 10px;
+  display: flex; align-items: center; justify-content: center;
+  text-align: center;
+}
+
+.message-text {
+  font-size: 11px; line-height: 1.45;
+  color: var(--text2);
+  transition: all 0.3s ease;
+}
+.message-text.highlight { color: var(--text); }
+
+/* ── Session dots ────────────────────────────────────────── */
+.dots {
+  display: flex; gap: 5px;
+  align-items: center;
+}
+.dot {
+  width: 7px; height: 7px; border-radius: 50%;
+  background: rgba(255,255,255,0.15);
+  transition: all 0.3s;
+}
+.dot.done { background: var(--accent); box-shadow: 0 0 5px var(--accent); }
+.dot.active { background: var(--accent); opacity: 0.4; }
+
+/* ── Controls ────────────────────────────────────────────── */
+.controls {
+  display: flex; gap: 8px;
+  padding: 0 12px 12px;
+  flex-shrink: 0;
+}
+
+.btn {
+  flex: 1; padding: 9px 0;
+  border: none; border-radius: 10px;
+  font-size: 12px; font-weight: 700;
+  cursor: pointer;
+  letter-spacing: 0.3px;
+  transition: all 0.15s;
+}
+
+.btn-primary {
+  background: var(--accent);
+  color: #fff;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.3);
+}
+.btn-primary:hover { filter: brightness(1.1); transform: translateY(-1px); }
+.btn-primary:active { transform: translateY(0); filter: brightness(0.95); }
+
+.btn-secondary {
+  background: var(--bg2);
+  color: var(--text2);
+  border: 1px solid rgba(255,255,255,0.08);
+}
+.btn-secondary:hover { background: var(--bg3); color: var(--text); }
+
+/* ── Reward banner (flashes on session done) ─────────────── */
+.reward-banner {
+  position: absolute; inset: 0;
+  background: rgba(15,15,20,0.96);
+  border-radius: var(--radius);
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  gap: 12px; padding: 20px;
+  z-index: 100;
+  opacity: 0; pointer-events: none;
+  transition: opacity 0.3s;
+  text-align: center;
+}
+.reward-banner.show { opacity: 1; pointer-events: all; }
+
+.reward-icon { font-size: 48px; line-height: 1; }
+
+.reward-text {
+  font-size: 14px; font-weight: 600;
+  line-height: 1.4; color: var(--text);
+}
+
+.reward-sub {
+  font-size: 11px; color: var(--text2);
+}
+
+.reward-close {
+  background: var(--accent); color: #fff;
+  border: none; border-radius: 10px;
+  padding: 8px 24px; font-size: 12px;
+  font-weight: 700; cursor: pointer;
+  transition: filter 0.15s;
+  margin-top: 4px;
+}
+.reward-close:hover { filter: brightness(1.15); }
+
+/* ── Settings panel ──────────────────────────────────────── */
+.settings {
+  position: absolute; inset: 0;
+  background: var(--bg);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border-radius: var(--radius);
+  z-index: 90;
+  padding: 16px;
+  display: flex; flex-direction: column; gap: 12px;
+  opacity: 0; pointer-events: none;
+  transition: opacity 0.2s;
+}
+.settings.show { opacity: 1; pointer-events: all; }
+
+.settings h3 {
+  font-size: 12px; text-transform: uppercase;
+  letter-spacing: 1px; color: var(--text2);
+  margin-bottom: 4px;
+}
+
+.setting-row {
+  display: flex; align-items: center; justify-content: space-between;
+}
+
+.setting-label { font-size: 12px; color: var(--text); }
+
+.setting-val {
+  display: flex; align-items: center; gap: 6px;
+}
+
+.num-btn {
+  width: 24px; height: 24px;
+  background: var(--bg2); border: none;
+  border-radius: 6px; color: var(--text);
+  cursor: pointer; font-size: 14px;
+  display: flex; align-items: center; justify-content: center;
+}
+.num-btn:hover { background: var(--bg3); }
+
+.num-display {
+  font-size: 12px; font-weight: 600;
+  color: var(--text); min-width: 36px;
+  text-align: center;
+}
+
+.settings-close {
+  margin-top: auto;
+  background: var(--bg2); color: var(--text2);
+  border: none; border-radius: 10px;
+  padding: 8px; font-size: 12px; cursor: pointer;
+}
+.settings-close:hover { background: var(--bg3); color: var(--text); }
+
+/* ── Animations ──────────────────────────────────────────── */
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+.pulsing .time-display { animation: pulse 1s infinite; }
+
+@keyframes fadeSlide {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.fade-in { animation: fadeSlide 0.35s ease both; }
+
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  20%, 60% { transform: translateX(-4px); }
+  40%, 80% { transform: translateX(4px); }
+}
+.shake { animation: shake 0.4s ease; }
+</style>
+</head>
+<body data-mode="work">
+
+<!-- ── Floating Window Shell ─────────────────────────────────── -->
+<div class="shell" id="shell">
+
+  <!-- Title bar (drag area) -->
+  <div class="titlebar" id="titlebar">
+    <div class="tb-dot tb-close"  id="btnClose" title="Quit"></div>
+    <div class="tb-dot tb-min"    id="btnHide"  title="Hide"></div>
+    <div class="tb-dot tb-pin"    id="btnPin"   title="Pin on top"></div>
+    <span class="tb-title" id="titleText">POMO FLOAT</span>
+    <button class="tb-sound" id="btnSound" title="Toggle sound">🔔</button>
+    <button class="tb-sound" id="btnSettings" title="Settings">⚙️</button>
+  </div>
+
+  <!-- Mode selector -->
+  <div class="modebar">
+    <button class="mode-btn active" data-mode="work">Work</button>
+    <button class="mode-btn"        data-mode="break">Short</button>
+    <button class="mode-btn"        data-mode="longbreak">Long</button>
+  </div>
+
+  <!-- Timer area -->
+  <div class="timer-area">
+    <!-- Arc ring -->
+    <div class="ring-wrap">
+      <svg class="ring-svg" viewBox="0 0 140 140">
+        <circle class="ring-track"    cx="70" cy="70" r="60"/>
+        <circle class="ring-progress" cx="70" cy="70" r="60"
+                id="ringProgress"
+                stroke-dasharray="377"
+                stroke-dashoffset="0"/>
+      </svg>
+      <div class="ring-inner">
+        <div class="time-display" id="timeDisplay">25:00</div>
+        <div class="session-label" id="sessionLabel">FOCUS</div>
+      </div>
+    </div>
+
+    <!-- Session dots -->
+    <div class="dots" id="dots">
+      <div class="dot active" data-s="1"></div>
+      <div class="dot"        data-s="2"></div>
+      <div class="dot"        data-s="3"></div>
+      <div class="dot"        data-s="4"></div>
+    </div>
+
+    <!-- Message -->
+    <div class="message-box">
+      <p class="message-text" id="messageText">Start a session. One at a time.</p>
+    </div>
+  </div>
+
+  <!-- Controls -->
+  <div class="controls">
+    <button class="btn btn-primary"   id="btnStartStop">Start</button>
+    <button class="btn btn-secondary" id="btnReset">Reset</button>
+  </div>
+
+</div><!-- /shell -->
+
+<!-- ── Reward Banner ─────────────────────────────────────────── -->
+<div class="reward-banner" id="rewardBanner">
+  <div class="reward-icon" id="rewardIcon">🎉</div>
+  <div class="reward-text" id="rewardText">Session complete!</div>
+  <div class="reward-sub"  id="rewardSub">Take your break.</div>
+  <button class="reward-close" id="rewardClose">Start Break →</button>
+</div>
+
+<!-- ── Settings Panel ────────────────────────────────────────── -->
+<div class="settings" id="settingsPanel">
+  <h3>Settings</h3>
+
+  <div class="setting-row">
+    <span class="setting-label">Work (min)</span>
+    <div class="setting-val">
+      <button class="num-btn" data-setting="work" data-dir="-1">−</button>
+      <span class="num-display" id="setWork">25</span>
+      <button class="num-btn" data-setting="work" data-dir="1">+</button>
+    </div>
+  </div>
+
+  <div class="setting-row">
+    <span class="setting-label">Short break (min)</span>
+    <div class="setting-val">
+      <button class="num-btn" data-setting="shortBreak" data-dir="-1">−</button>
+      <span class="num-display" id="setShort">5</span>
+      <button class="num-btn" data-setting="shortBreak" data-dir="1">+</button>
+    </div>
+  </div>
+
+  <div class="setting-row">
+    <span class="setting-label">Long break (min)</span>
+    <div class="setting-val">
+      <button class="num-btn" data-setting="longBreak" data-dir="-1">−</button>
+      <span class="num-display" id="setLong">15</span>
+      <button class="num-btn" data-setting="longBreak" data-dir="1">+</button>
+    </div>
+  </div>
+
+  <div class="setting-row">
+    <span class="setting-label">Sessions before long</span>
+    <div class="setting-val">
+      <button class="num-btn" data-setting="sessionsBeforeLong" data-dir="-1">−</button>
+      <span class="num-display" id="setSessions">4</span>
+      <button class="num-btn" data-setting="sessionsBeforeLong" data-dir="1">+</button>
+    </div>
+  </div>
+
+  <div class="setting-row">
+    <span class="setting-label">Tick sound</span>
+    <div class="setting-val">
+      <button class="num-btn" id="tickToggle">ON</button>
+    </div>
+  </div>
+
+  <div class="setting-row">
+    <span class="setting-label">Volume</span>
+    <div class="setting-val">
+      <button class="num-btn" data-setting="volume" data-dir="-1">−</button>
+      <span class="num-display" id="setVol">60%</span>
+      <button class="num-btn" data-setting="volume" data-dir="1">+</button>
+    </div>
+  </div>
+
+  <button class="settings-close" id="settingsClose">Done</button>
+</div>
+
+<!-- ── Scripts ────────────────────────────────────────────────── -->
+<script src="messages.js"></script>
+<script src="sounds.js"></script>
+<script>
+'use strict';
+
+// ── State ──────────────────────────────────────────────────────
+const CFG = {
+  work:               25,
+  shortBreak:          5,
+  longBreak:          15,
+  sessionsBeforeLong:  4,
+  volume:             60,
+  tickEnabled:       true,
+  soundEnabled:      true,
+  pinned:            true,
+};
+
+let timerState = {
+  mode:          'work',   // 'work' | 'break' | 'longbreak'
+  running:       false,
+  totalSecs:     25 * 60,
+  remainingSecs: 25 * 60,
+  sessionsDone:  0,
+  totalToday:    0,
+  intervalId:    null,
+  lastMsgIdx:    -1,
+  lastBreakIdx:  -1,
+  lastRewardIdx: -1,
+};
+
+const sound = new SoundEngine();
+const CIRC  = 2 * Math.PI * 60; // ~377
+
+// ── DOM refs ──────────────────────────────────────────────────
+const $ = id => document.getElementById(id);
+const timeDisplay   = $('timeDisplay');
+const sessionLabel  = $('sessionLabel');
+const ringProgress  = $('ringProgress');
+const messageText   = $('messageText');
+const btnStartStop  = $('btnStartStop');
+const btnReset      = $('btnReset');
+const rewardBanner  = $('rewardBanner');
+const rewardClose   = $('rewardClose');
+const rewardText    = $('rewardText');
+const rewardSub     = $('rewardSub');
+const rewardIcon    = $('rewardIcon');
+const settingsPanel = $('settingsPanel');
+const dots          = $('dots');
+const shell         = $('shell');
+const titleText     = $('titleText');
+
+// ── Helpers ───────────────────────────────────────────────────
+function fmt(secs) {
+  const m = String(Math.floor(secs / 60)).padStart(2, '0');
+  const s = String(secs % 60).padStart(2, '0');
+  return `${m}:${s}`;
+}
+
+function setRing(remaining, total) {
+  const pct    = remaining / total;
+  const offset = CIRC * (1 - pct);
+  ringProgress.style.strokeDashoffset = offset;
+}
+
+function setMessage(text, highlight = false) {
+  messageText.classList.remove('fade-in');
+  void messageText.offsetWidth; // reflow
+  messageText.textContent = text;
+  messageText.classList.toggle('highlight', highlight);
+  messageText.classList.add('fade-in');
+}
+
+function updateDots() {
+  const allDots = dots.querySelectorAll('.dot');
+  allDots.forEach((d, i) => {
+    d.className = 'dot';
+    if (i < timerState.sessionsDone % CFG.sessionsBeforeLong) d.classList.add('done');
+    else if (i === timerState.sessionsDone % CFG.sessionsBeforeLong) d.classList.add('active');
+  });
+}
+
+function rebuildDots() {
+  dots.innerHTML = '';
+  for (let i = 0; i < CFG.sessionsBeforeLong; i++) {
+    const d = document.createElement('div');
+    d.className = 'dot';
+    d.dataset.s = i + 1;
+    dots.appendChild(d);
+  }
+  updateDots();
+}
+
+function setMode(mode) {
+  timerState.mode = mode;
+  document.body.dataset.mode = mode;
+
+  // Update mode buttons
+  document.querySelectorAll('.mode-btn').forEach(b => {
+    b.classList.toggle('active', b.dataset.mode === mode);
+  });
+
+  if (mode === 'work') {
+    timerState.totalSecs     = CFG.work * 60;
+    timerState.remainingSecs = CFG.work * 60;
+    sessionLabel.textContent = 'FOCUS';
+    titleText.textContent    = 'POMO FLOAT';
+    const r = MESSAGES.pick(MESSAGES.IDLE_TIPS, timerState.lastMsgIdx);
+    timerState.lastMsgIdx = r.idx;
+    setMessage(r.text);
+  } else if (mode === 'break') {
+    timerState.totalSecs     = CFG.shortBreak * 60;
+    timerState.remainingSecs = CFG.shortBreak * 60;
+    sessionLabel.textContent = 'BREAK';
+    const r = MESSAGES.pick(MESSAGES.BREAK_START, timerState.lastBreakIdx);
+    timerState.lastBreakIdx = r.idx;
+    setMessage(r.text, true);
+    sound.breakStart();
+  } else {
+    timerState.totalSecs     = CFG.longBreak * 60;
+    timerState.remainingSecs = CFG.longBreak * 60;
+    sessionLabel.textContent = 'LONG BREAK';
+    const r = MESSAGES.pick(MESSAGES.LONG_BREAK_START, timerState.lastBreakIdx);
+    timerState.lastBreakIdx = r.idx;
+    setMessage(r.text, true);
+    sound.longBreakStart();
+  }
+
+  timeDisplay.textContent = fmt(timerState.remainingSecs);
+  setRing(timerState.remainingSecs, timerState.totalSecs);
+  stopTimer();
+  btnStartStop.textContent = 'Start';
+}
+
+// ── Timer logic ───────────────────────────────────────────────
+function startTimer() {
+  if (timerState.running) return;
+  timerState.running = true;
+  btnStartStop.textContent = 'Pause';
+  shell.classList.remove('pulsing');
+
+  timerState.intervalId = setInterval(() => {
+    if (timerState.remainingSecs <= 0) {
+      clearInterval(timerState.intervalId);
+      onTimerExpired();
+      return;
+    }
+    timerState.remainingSecs--;
+    timeDisplay.textContent = fmt(timerState.remainingSecs);
+    setRing(timerState.remainingSecs, timerState.totalSecs);
+
+    // Tick sound last 5 seconds
+    if (timerState.remainingSecs <= 5 && CFG.tickEnabled) {
+      sound.tick();
+    }
+
+    // Update title bar countdown
+    titleText.textContent = fmt(timerState.remainingSecs);
+  }, 1000);
+}
+
+function pauseTimer() {
+  clearInterval(timerState.intervalId);
+  timerState.running = false;
+  btnStartStop.textContent = 'Resume';
+  shell.classList.add('pulsing');
+}
+
+function stopTimer() {
+  clearInterval(timerState.intervalId);
+  timerState.running = false;
+  shell.classList.remove('pulsing');
+}
+
+function onTimerExpired() {
+  timerState.running = false;
+  shell.classList.remove('pulsing');
+
+  if (timerState.mode === 'work') {
+    // Session complete
+    timerState.sessionsDone++;
+    timerState.totalToday++;
+    updateDots();
+
+    const isLongBreak = timerState.sessionsDone % CFG.sessionsBeforeLong === 0;
+    const hasMilestone = MESSAGES.MILESTONES[timerState.totalToday];
+
+    if (hasMilestone) sound.milestone();
+    else sound.sessionDone();
+
+    // Pick reward message
+    const r = MESSAGES.pick(MESSAGES.REWARDS, timerState.lastRewardIdx);
+    timerState.lastRewardIdx = r.idx;
+
+    const icons = ['🏆','🔥','⭐','💪','🎯','✨','🚀','🎉','🌟','💡'];
+    rewardIcon.textContent = icons[Math.floor(Math.random() * icons.length)];
+    rewardText.textContent = r.text;
+    rewardSub.textContent  = hasMilestone
+      ? MESSAGES.MILESTONES[timerState.totalToday]
+      : `Session ${timerState.totalToday} done today. ${isLongBreak ? 'Long break earned!' : 'Short break time.'}`;
+    rewardClose.textContent = isLongBreak ? 'Take long break →' : 'Start break →';
+    rewardClose.dataset.next = isLongBreak ? 'longbreak' : 'break';
+
+    rewardBanner.classList.add('show');
+
+  } else {
+    // Break done
+    sound.breakEnd();
+    const r = MESSAGES.pick(MESSAGES.BREAK_END, timerState.lastBreakIdx);
+    timerState.lastBreakIdx = r.idx;
+    setMessage(r.text, true);
+    setMode('work');
+    titleText.textContent = '🍅 BACK TO WORK';
+    setTimeout(() => { titleText.textContent = 'POMO FLOAT'; }, 3000);
+  }
+
+  timeDisplay.textContent = '00:00';
+  setRing(0, timerState.totalSecs);
+  btnStartStop.textContent = 'Start';
+}
+
+// ── Button handlers ───────────────────────────────────────────
+btnStartStop.addEventListener('click', () => {
+  sound.click();
+  if (timerState.running) pauseTimer();
+  else startTimer();
+});
+
+btnReset.addEventListener('click', () => {
+  sound.click();
+  stopTimer();
+  timerState.remainingSecs = timerState.totalSecs;
+  timeDisplay.textContent  = fmt(timerState.remainingSecs);
+  setRing(timerState.remainingSecs, timerState.totalSecs);
+  btnStartStop.textContent = 'Start';
+  titleText.textContent    = 'POMO FLOAT';
+  const r = MESSAGES.pick(MESSAGES.IDLE_TIPS, timerState.lastMsgIdx);
+  timerState.lastMsgIdx = r.idx;
+  setMessage(r.text);
+});
+
+rewardClose.addEventListener('click', () => {
+  sound.click();
+  rewardBanner.classList.remove('show');
+  setMode(rewardClose.dataset.next || 'break');
+  startTimer();
+});
+
+// Mode buttons
+document.querySelectorAll('.mode-btn').forEach(b => {
+  b.addEventListener('click', () => {
+    sound.click();
+    if (!timerState.running || confirm('Switch mode? Timer will reset.')) {
+      setMode(b.dataset.mode);
+    }
+  });
+});
+
+// Title bar controls
+$('btnClose').addEventListener('click', () => window.pomo?.close());
+$('btnHide').addEventListener('click',  () => window.pomo?.hide());
+$('btnPin').addEventListener('click',   () => {
+  CFG.pinned = !CFG.pinned;
+  window.pomo?.toggleTop(CFG.pinned);
+  $('btnPin').style.background = CFG.pinned ? 'var(--accent)' : '#555';
+});
+
+$('btnSound').addEventListener('click', () => {
+  CFG.soundEnabled = !CFG.soundEnabled;
+  sound.setEnabled(CFG.soundEnabled);
+  $('btnSound').textContent = CFG.soundEnabled ? '🔔' : '🔕';
+});
+
+$('btnSettings').addEventListener('click', () => {
+  settingsPanel.classList.toggle('show');
+});
+
+$('settingsClose').addEventListener('click', () => {
+  sound.click();
+  settingsPanel.classList.remove('show');
+  rebuildDots();
+  setMode('work');
+});
+
+// Settings number buttons
+document.querySelectorAll('.num-btn[data-setting]').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const key = btn.dataset.setting;
+    const dir = parseInt(btn.dataset.dir);
+    if (key === 'volume') {
+      CFG.volume = Math.max(10, Math.min(100, CFG.volume + dir * 10));
+      sound.setVolume(CFG.volume / 100);
+      $('setVol').textContent = CFG.volume + '%';
+    } else {
+      const min   = { work: 5, shortBreak: 1, longBreak: 5, sessionsBeforeLong: 2 };
+      const max   = { work: 90, shortBreak: 30, longBreak: 60, sessionsBeforeLong: 8 };
+      const dispId = { work:'setWork', shortBreak:'setShort', longBreak:'setLong', sessionsBeforeLong:'setSessions' };
+      CFG[key] = Math.max(min[key], Math.min(max[key], CFG[key] + dir));
+      $(dispId[key]).textContent = CFG[key];
+    }
+    sound.click();
+  });
+});
+
+$('tickToggle').addEventListener('click', () => {
+  CFG.tickEnabled = !CFG.tickEnabled;
+  $('tickToggle').textContent = CFG.tickEnabled ? 'ON' : 'OFF';
+  sound.click();
+});
+
+// ── Window dragging ───────────────────────────────────────────
+let dragStart = null;
+$('titlebar').addEventListener('mousedown', e => {
+  if (e.target.classList.contains('tb-dot') || e.target.classList.contains('tb-sound')) return;
+  dragStart = { x: e.screenX, y: e.screenY };
+});
+document.addEventListener('mousemove', e => {
+  if (!dragStart) return;
+  const dx = e.screenX - dragStart.x;
+  const dy = e.screenY - dragStart.y;
+  dragStart = { x: e.screenX, y: e.screenY };
+  window.pomo?.drag({ deltaX: dx, deltaY: dy });
+});
+document.addEventListener('mouseup', () => { dragStart = null; });
+
+// ── Init ──────────────────────────────────────────────────────
+rebuildDots();
+setMode('work');
+</script>
+</body>
+</html>
