@@ -1,6 +1,6 @@
 # 🍅 Pomo Float
 
-A tiny floating Pomodoro timer that sits on top of all your windows while you work. Dark frosted glass UI. Satisfying sounds. Different reward and break messages every time. Never gets in the way.
+A tiny floating Pomodoro timer for your pc windows while you work. With Dark frosted glass UI and Satisfying sounds. It have some Different reward and break messages every time. Also it is never gets in the way.
 
 It's 280px wide. It floats. It stays out of the way.
 
